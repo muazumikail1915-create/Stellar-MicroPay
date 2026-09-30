@@ -6,47 +6,49 @@
 import { parseStellarURI, uriToPrefillData, isPaymentURIExpired, type ParsedStellarURI } from '../lib/sep0007';
 
 describe('sep0007 URI parsing', () => {
+  const VALID_ADDRESS = 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H';
+
   describe('Generates valid SEP-0007 URIs', () => {
     it('parses a basic stellar:pay URI with destination', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
-      expect(result.data?.destination).toBe('GABC123456789012345678901234567890123456789012345678');
+      expect(result.data?.destination).toBe(VALID_ADDRESS);
     });
 
     it('parses a URI with destination, amount, and memo', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&amount=100&memo=TestPayment';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&amount=100&memo=TestPayment`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
-      expect(result.data?.destination).toBe('GABC123456789012345678901234567890123456789012345678');
+      expect(result.data?.destination).toBe(VALID_ADDRESS);
       expect(result.data?.amount).toBe('100');
       expect(result.data?.memo).toBe('TestPayment');
     });
 
     it('parses a web+stellar:pay URI', () => {
-      const uri = 'web+stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&amount=50';
+      const uri = `web+stellar:pay?destination=${VALID_ADDRESS}&amount=50`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
       expect(result.isExternal).toBe(true);
-      expect(result.data?.destination).toBe('GABC123456789012345678901234567890123456789012345678');
+      expect(result.data?.destination).toBe(VALID_ADDRESS);
       expect(result.data?.amount).toBe('50');
     });
 
     it('parses stellarmicropay:// deep link with to parameter', () => {
-      const uri = 'stellarmicropay://pay?to=GABC123456789012345678901234567890123456789012345678&amount=25';
+      const uri = `stellarmicropay://pay?to=${VALID_ADDRESS}&amount=25`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
-      expect(result.data?.destination).toBe('GABC123456789012345678901234567890123456789012345678');
+      expect(result.data?.destination).toBe(VALID_ADDRESS);
       expect(result.data?.amount).toBe('25');
     });
 
     it('parses a URI with valid_after field', () => {
       const futureTimestamp = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
-      const uri = `stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&amount=100&valid_after=${futureTimestamp}`;
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&amount=100&valid_after=${futureTimestamp}`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
@@ -56,37 +58,41 @@ describe('sep0007 URI parsing', () => {
 
   describe('Parses valid URI back into operation params', () => {
     it('extracts all optional parameters correctly', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&amount=100&asset_code=USDC&asset_issuer=GDEF456789012345678901234567890123456789012345678901&memo=Invoice123&memo_type=MEMO_TEXT&msg=Payment%20for%20services';
+      const ADDRESS_A = 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H';
+      const ADDRESS_B = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+      const uri = `stellar:pay?destination=${ADDRESS_A}&amount=100&asset_code=USDC&asset_issuer=${ADDRESS_B}&memo=Invoice123&memo_type=MEMO_TEXT&msg=Payment%20for%20services`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
-      expect(result.data?.destination).toBe('GABC123456789012345678901234567890123456789012345678');
+      expect(result.data?.destination).toBe(ADDRESS_A);
       expect(result.data?.amount).toBe('100');
       expect(result.data?.assetCode).toBe('USDC');
-      expect(result.data?.assetIssuer).toBe('GDEF456789012345678901234567890123456789012345678901');
+      expect(result.data?.assetIssuer).toBe(ADDRESS_B);
       expect(result.data?.memo).toBe('Invoice123');
       expect(result.data?.memoType).toBe('MEMO_TEXT');
       expect(result.data?.msg).toBe('Payment for services');
     });
 
     it('converts parsed URI to prefill data', () => {
+      const VALID_ADDRESS = 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H';
       const parsed: ParsedStellarURI = {
-        destination: 'GABC123456789012345678901234567890123456789012345678',
+        destination: VALID_ADDRESS,
         amount: '100',
         memo: 'Test'
       };
 
       const prefillData = uriToPrefillData(parsed);
 
-      expect(prefillData.destination).toBe('GABC123456789012345678901234567890123456789012345678');
+      expect(prefillData.destination).toBe(VALID_ADDRESS);
       expect(prefillData.amount).toBe('100');
       expect(prefillData.memo).toBe('Test');
     });
 
     it('includes validAfter in prefill data when present', () => {
+      const VALID_ADDRESS = 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H';
       const validAfter = Math.floor(Date.now() / 1000) + 3600;
       const parsed: ParsedStellarURI = {
-        destination: 'GABC123456789012345678901234567890123456789012345678',
+        destination: VALID_ADDRESS,
         amount: '50',
         memo: 'Test',
         validAfter
@@ -99,8 +105,11 @@ describe('sep0007 URI parsing', () => {
   });
 
   describe('Rejects malformed or unsupported URIs', () => {
+    const VALID_ADDRESS = 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H';
+    const ISSUER_ADDRESS = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+
     it('rejects URI without stellar: or web+stellar: scheme', () => {
-      const uri = 'http://example.com?destination=GABC123456789012345678901234567890123456789012345678';
+      const uri = `http://example.com?destination=${VALID_ADDRESS}`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(false);
@@ -124,7 +133,7 @@ describe('sep0007 URI parsing', () => {
     });
 
     it('rejects URI with invalid amount', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&amount=-50';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&amount=-50`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(false);
@@ -132,7 +141,7 @@ describe('sep0007 URI parsing', () => {
     });
 
     it('rejects URI with non-numeric amount', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&amount=abc';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&amount=abc`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(false);
@@ -140,7 +149,7 @@ describe('sep0007 URI parsing', () => {
     });
 
     it('rejects URI with asset_code but missing asset_issuer', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&asset_code=USDC';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&asset_code=USDC`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(false);
@@ -148,7 +157,7 @@ describe('sep0007 URI parsing', () => {
     });
 
     it('allows XLM asset_code without asset_issuer', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&asset_code=XLM&amount=100';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&asset_code=XLM&amount=100`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
@@ -156,7 +165,7 @@ describe('sep0007 URI parsing', () => {
     });
 
     it('handles malformed query parameters gracefully', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&&&amount=100';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&&&amount=100`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
@@ -164,7 +173,7 @@ describe('sep0007 URI parsing', () => {
     });
 
     it('rejects URI with asset_issuer but missing asset_code', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&asset_issuer=GDEF456789012345678901234567890123456789012345678901';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&asset_issuer=${ISSUER_ADDRESS}`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(false);
@@ -172,7 +181,7 @@ describe('sep0007 URI parsing', () => {
     });
 
     it('rejects unsupported network passphrase', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&network_passphrase=Fake%20Network';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&network_passphrase=Fake%20Network`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(false);
@@ -180,7 +189,7 @@ describe('sep0007 URI parsing', () => {
     });
 
     it('allows valid network passphrases', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&network_passphrase=Test%20SDF%20Network%20%3B%20September%202015';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&network_passphrase=Test%20SDF%20Network%20%3B%20September%202015`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
@@ -188,7 +197,9 @@ describe('sep0007 URI parsing', () => {
   });
 
   describe('valid_after expiration handling', () => {
-    it('returns false for expired URI (current time > valid_after)', () => {
+    const VALID_ADDRESS = 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H';
+
+    it('returns true for expired URI (current time > valid_after)', () => {
       const pastTimestamp = Math.floor(Date.now() / 1000) - 3600; // 1 hour ago
       expect(isPaymentURIExpired(pastTimestamp)).toBe(true);
     });
@@ -208,7 +219,7 @@ describe('sep0007 URI parsing', () => {
 
     it('parses expired URI correctly', () => {
       const pastTimestamp = Math.floor(Date.now() / 1000) - 3600; // 1 hour ago
-      const uri = `stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&amount=100&valid_after=${pastTimestamp}`;
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&amount=100&valid_after=${pastTimestamp}`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
@@ -217,7 +228,7 @@ describe('sep0007 URI parsing', () => {
     });
 
     it('ignores invalid valid_after values', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&amount=100&valid_after=invalid';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&amount=100&valid_after=invalid`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
@@ -225,7 +236,7 @@ describe('sep0007 URI parsing', () => {
     });
 
     it('ignores negative valid_after values', () => {
-      const uri = 'stellar:pay?destination=GABC123456789012345678901234567890123456789012345678&amount=100&valid_after=-1000';
+      const uri = `stellar:pay?destination=${VALID_ADDRESS}&amount=100&valid_after=-1000`;
       const result = parseStellarURI(uri);
 
       expect(result.success).toBe(true);
