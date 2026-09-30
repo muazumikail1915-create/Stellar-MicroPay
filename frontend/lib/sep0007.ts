@@ -16,6 +16,7 @@ export interface ParsedStellarURI {
   originDomain?: string;
   signature?: string;
   callback?: string;
+  validAfter?: number; // Unix timestamp in seconds
 }
 
 export interface URIParseResult {
@@ -73,6 +74,16 @@ export function parseStellarURI(uri: string): URIParseResult {
     const originDomain = params.get('origin_domain') || undefined;
     const signature = params.get('signature') || undefined;
     const callback = params.get('callback') || undefined;
+    const validAfterRaw = params.get('valid_after') || undefined;
+
+    // Parse valid_after as Unix timestamp (seconds)
+    let validAfter: number | undefined;
+    if (validAfterRaw) {
+      const timestamp = parseInt(validAfterRaw, 10);
+      if (!isNaN(timestamp) && timestamp > 0) {
+        validAfter = timestamp;
+      }
+    }
 
     // Validate memo type if memo is present
     if (memo && memoType && !['MEMO_TEXT', 'MEMO_ID', 'MEMO_HASH', 'MEMO_RETURN'].includes(memoType)) {
@@ -112,7 +123,8 @@ export function parseStellarURI(uri: string): URIParseResult {
       networkPassphrase,
       originDomain,
       signature,
-      callback
+      callback,
+      validAfter
     };
 
     return {
@@ -166,6 +178,21 @@ export function uriToPrefillData(parsed: ParsedStellarURI) {
   return {
     destination: parsed.destination,
     amount: parsed.amount || '',
-    memo: parsed.memo || ''
+    memo: parsed.memo || '',
+    assetCode: parsed.assetCode,
+    assetIssuer: parsed.assetIssuer,
+    networkPassphrase: parsed.networkPassphrase,
+    validAfter: parsed.validAfter
   };
+}
+
+/**
+ * Check if a payment URI has expired based on valid_after field
+ * @param validAfter Unix timestamp in seconds
+ * @returns true if expired (current time > valid_after)
+ */
+export function isPaymentURIExpired(validAfter?: number): boolean {
+  if (!validAfter) return false;
+  const currentTimeSeconds = Math.floor(Date.now() / 1000);
+  return currentTimeSeconds > validAfter;
 }

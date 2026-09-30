@@ -52,6 +52,7 @@ interface SendPaymentFormProps {
     amount: string;
     memo?: string;
     validUntil?: number;
+    validAfter?: number; // Unix timestamp in seconds (SEP-0007 expiration)
     fromHistory?: boolean;
   } | null;
   aiPrefill?: {
@@ -159,6 +160,9 @@ export default function SendPaymentForm({
   const detectorRef = useRef<BarcodeDetectorLike | null>(null);
   const frameRequestRef = useRef<number | null>(null);
   const isDetectingRef = useRef(false);
+
+  // SEP-0007 expiration state
+  const [isURIExpired, setIsURIExpired] = useState(false);
 
   useEffect(() => {
     const checkSupport = async () => {
@@ -363,6 +367,28 @@ export default function SendPaymentForm({
     if (prefill.memo) setMemo(truncateMemoText(prefill.memo));
   }, [prefill]);
 
+  // Check if SEP-0007 URI has expired (valid_after field)
+  useEffect(() => {
+    if (!prefill?.validAfter) {
+      setIsURIExpired(false);
+      return;
+    }
+
+    const checkExpiration = () => {
+      const currentTimeSeconds = Math.floor(Date.now() / 1000);
+      const expired = currentTimeSeconds > prefill.validAfter!;
+      setIsURIExpired(expired);
+    };
+
+    // Check immediately
+    checkExpiration();
+
+    // Set up interval to check periodically (every 5 seconds)
+    const intervalId = setInterval(checkExpiration, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [prefill?.validAfter]);
+
   const xlmBal = parseFloat(xlmBalance);
   const usdcBal = usdcBalance ? parseFloat(usdcBalance) : 0;
   const balance = selectedAsset === "XLM" ? xlmBal : usdcBal;
@@ -382,7 +408,7 @@ export default function SendPaymentForm({
   const isValidAmt = !Number.isNaN(amountNum) && amountNum >= MIN_STROOP && amountNum <= maxSend;
 
   const canSubmit = (isValidDest || (isUsernameDestination && !isResolvingUsername && !usernameResolutionError)) &&
-    isValidAmt && status === "idle" && destination !== publicKey;
+    isValidAmt && status === "idle" && destination !== publicKey && !isURIExpired;
 
   const resolveUsername = async (username: string) => {
     const cleanUsername = username.replace(/^@/, "").toLowerCase();
@@ -730,6 +756,24 @@ export default function SendPaymentForm({
         <SendIcon className="w-5 h-5 text-stellar-400" />
         {title}
       </h2>
+
+      {/* SEP-0007 URI Expiration Warning */}
+      {isURIExpired && (
+        <div
+          role="alert"
+          className="mb-5 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm"
+        >
+          <div className="flex items-start gap-3">
+            <span className="text-rose-400 text-lg">⚠️</span>
+            <div>
+              <p className="font-semibold text-rose-100">This payment link has expired</p>
+              <p className="mt-1 text-rose-200/80">
+                The valid_after timestamp has passed. This payment can no longer be submitted.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-5">
         {!hideAssetSelector && (
