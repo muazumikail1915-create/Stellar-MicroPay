@@ -5,16 +5,19 @@
 
 "use strict";
 
-var streamOptions = null;
-var lastCursorArg = null;
+// Use an object so the reference stays stable across reassignments
+const testState = {
+  streamOptions: null,
+  lastCursorArg: null,
+};
 
 jest.mock("@stellar/stellar-sdk", () => {
   const stream = jest.fn((opts) => {
-    streamOptions = opts;
+    testState.streamOptions = opts;
     return jest.fn();
   });
   const cursor = jest.fn((arg) => {
-    lastCursorArg = arg;
+    testState.lastCursorArg = arg;
     return { stream };
   });
   const forAccount = jest.fn(() => ({ cursor }));
@@ -35,7 +38,7 @@ jest.mock("../src/services/cursorStore", () => ({
 }));
 
 const { Horizon } = require("@stellar/stellar-sdk");
-const { startMonitoring } = require("../src/services/paymentMonitor");
+const { startMonitoring, stopMonitoring } = require("../src/services/paymentMonitor");
 const { getWebhooksByPublicKey } = require("../src/services/webhookStore");
 const { deliverWebhook } = require("../src/services/webhookDelivery");
 const cursorStore = require("../src/services/cursorStore");
@@ -59,42 +62,46 @@ function payment(over = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  streamOptions = null;
-  lastCursorArg = null;
+  testState.streamOptions = null;
+  testState.lastCursorArg = null;
   cursorStore.get.mockReturnValue("now");
   getWebhooksByPublicKey.mockReturnValue([{ id: "w1", publicKey: PUBLIC_KEY }]);
+});
+
+afterEach(() => {
+  stopMonitoring(PUBLIC_KEY);
 });
 
 describe("paymentMonitor durable cursor (#773)", () => {
   it("resumes from a persisted cursor instead of always 'now'", () => {
     cursorStore.get.mockReturnValue("003100000000");
     startMonitoring(PUBLIC_KEY);
-    expect(lastCursorArg).toBe("003100000000");
+    expect(testState.lastCursorArg).toBe("003100000000");
   });
 
   it("falls back to 'now' when no cursor has been persisted", () => {
     startMonitoring(PUBLIC_KEY);
-    expect(lastCursorArg).toBe("now");
+    expect(testState.lastCursorArg).toBe("now");
   });
 
   it("advances the durable cursor after handling a payment", async () => {
     startMonitoring(PUBLIC_KEY);
-    await streamOptions.onmessage(payment({ paging_token: "p1" }));
+    await testState.streamOptions.onmessage(payment({ paging_token: "p1" }));
     expect(cursorStore.set).toHaveBeenCalledWith(PUBLIC_KEY, "p1");
   });
 
   it("skips a payment replayed at the last persisted cursor", async () => {
     cursorStore.get.mockReturnValue("p1");
     startMonitoring(PUBLIC_KEY);
-    await streamOptions.onmessage(payment({ paging_token: "p1" }));
+    await testState.streamOptions.onmessage(payment({ paging_token: "p1" }));
     expect(getWebhooksByPublicKey).not.toHaveBeenCalled();
     expect(deliverWebhook).not.toHaveBeenCalled();
   });
 
   it("de-duplicates repeated paging tokens within one stream", async () => {
     startMonitoring(PUBLIC_KEY);
-    await streamOptions.onmessage(payment({ paging_token: "p2" }));
-    await streamOptions.onmessage(payment({ paging_token: "p2" }));
+    await testState.streamOptions.onmessage(payment({ paging_token: "p2" }));
+    await testState.streamOptions.onmessage(payment({ paging_token: "p2" }));
     expect(deliverWebhook).toHaveBeenCalledTimes(1);
   });
 });
